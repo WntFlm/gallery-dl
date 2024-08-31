@@ -29,6 +29,7 @@ modules = [
     "batoto",
     "bbc",
     "behance",
+    "booth",
     "blogger",
     "bluesky",
     "bunkr",
