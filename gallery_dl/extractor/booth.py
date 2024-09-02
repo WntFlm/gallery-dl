@@ -9,7 +9,6 @@
 from typing import Dict
 from .common import Extractor, Message
 from .. import text
-from ..cache import memcache
 
 
 class BoothExtractor(Extractor):
@@ -20,14 +19,9 @@ class BoothExtractor(Extractor):
 
     category = "booth"
     root = "https://www.booth.pm"
-    directory_fmt = ("{category}", "{shopName}")
-    filename_fmt = "{id}_{num}.{extension}"
+    directory_fmt = ("[{shopName}] {category}",)
+    filename_fmt = "{num}{filename:?_//}{image_caption:?_//}.{extension}"
     archive_fmt = "{id}_{num}"
-    # _warning = True
-
-    def _init(self):
-        self.config("")
-        pass
 
     def _get_product_data(self, shop_id, product_id):
         url = f"https://booth.pm/en/items/{product_id}"
