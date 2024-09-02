@@ -16,44 +16,41 @@ class BoothExtractor(Extractor):
     """Base class for BOOTH extractors"""
 
     BASE_PATTERN = r"(?:https?://)?(?:www\.)?booth\.pm"
-    SELLER_PATTERN = r"(?:https?://)?(?:(?!www\.)([\w-]+))\.booth\.pm"
+    SHOP_PATTERN = r"(?:https?://)?(?:(?!www\.)([\w-]+))\.booth\.pm"
 
     category = "booth"
     root = "https://www.booth.pm"
-    directory_fmt = ("{category}", "{sellerName}")
+    directory_fmt = ("{category}", "{shopName}")
     filename_fmt = "{id}_{num}.{extension}"
     archive_fmt = "{id}_{num}"
     # _warning = True
 
     def _init(self):
+        self.config("")
         pass
 
-    def _get_product_data(self, seller_id, product_id):
-        url = f"https://{seller_id}.booth.pm/items/{product_id}"
-        # url = f"https://booth.pm/items/{product_id}"
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        response = self.request(url, headers=headers)
-        metadata: Dict = response.json()
+    def _get_product_data(self, shop_id, product_id):
+        url = f"https://booth.pm/en/items/{product_id}"
+        metadata: Dict = self.request(url, headers={"Accept": "application/json"}).json()
         metadata.pop("tag_banners")
         metadata["tags"] = [x["name"] for x in metadata["tags"]]  # discard the tag url
+        html = self.request(url).text
+        images_mata = metadata.pop("images")
+        metadata["images"] = zip(
+            (x["caption"] for x in images_mata),
+            text.extract_iter(html, begin='data-origin="', end='"'),
+        )
         return metadata
 
     def _get_image_url_from_metadata(self, metadata: Dict):
         metadata = metadata.copy()
         images = metadata.pop("images")
-        for i, image_meta in enumerate(images):
-            # image_meta: {"caption": ..., "original": ..., "resized": ...}
-            original: str = image_meta["original"].replace("_base_resized", "")
-            fallback = (
-                image_meta["original"].replace("_base_resized.jpg", ".PNG"),
-                image_meta["original"],
-            )
+        for i, (caption, url) in enumerate(images):
             metadata["num"] = i + 1
-            metadata["image_url"] = original
-            metadata["extension"] = original.split(".")[-1]
-            metadata["_fallback"] = fallback
-            metadata["image_meta"] = image_meta
-            yield Message.Url, original, metadata
+            metadata["image_url"] = url
+            metadata["extension"] = url.split(".")[-1]
+            metadata["image_caption"] = caption
+            yield Message.Url, url, metadata
 
     def items(self):
         raise NotImplementedError
@@ -63,16 +60,18 @@ class BoothProductExtractor(BoothExtractor):
     """Extractor for preview pictures from a single BOOTH product"""
 
     subcategory = "product"
-    pattern = BoothExtractor.SELLER_PATTERN + r"/items/(\d+)"
-    example = "https://SELLER.booth.pm/items/12345"
+    __pattern0 = BoothExtractor.SHOP_PATTERN + r"/items/(\d+)"
+    __pattern1 = BoothExtractor.BASE_PATTERN + r"/(?:w+/)?items/(\d+)"
+    pattern = __pattern0 + r"|" + __pattern1
+    example = "https://SHOP.booth.pm/items/12345 or https://booth.pm/en/items/12345"
 
     def __init__(self, match):
-        BoothExtractor.__init__(self, match)
-        self.seller_id = match.group(1)
+        super().__init__(match)
+        self.shop_id = match.group(1)
         self.product_id = match.group(2)
 
     def _get_product_data(self):
-        return super()._get_product_data(self.seller_id, self.product_id)
+        return super()._get_product_data(self.shop_id, self.product_id)
 
     def items(self):
         metadata = self._get_product_data()
