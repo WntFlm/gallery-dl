@@ -31,7 +31,9 @@ class BoothExtractor(Extractor):
 
     def _get_product_data(self, shop_id, product_id):
         url = f"https://booth.pm/en/items/{product_id}"
-        metadata: Dict = self.request(url, headers={"Accept": "application/json"}).json()
+        metadata: Dict = self.request(
+            url, headers={"Accept": "application/json"}
+        ).json()
         metadata.pop("tag_banners")
         metadata["tags"] = [x["name"] for x in metadata["tags"]]  # discard the tag url
         html = self.request(url).text
@@ -77,3 +79,40 @@ class BoothProductExtractor(BoothExtractor):
         metadata = self._get_product_data()
         yield Message.Directory, metadata
         yield from self._get_image_url_from_metadata(metadata)
+
+
+class BoothShopExtractor(BoothExtractor):
+    """Extractor for preview pictures from all products in a shop"""
+
+    subcategory = "shop"
+    pattern = BoothExtractor.SHOP_PATTERN + r"(?:/(?:items/?)?)?"
+    example = "https://SHOP.booth.pm/"
+
+    def __init__(self, match):
+        super().__init__(match)
+        self.shop_id = match.group(1)
+
+    def _get_product_data(self, product_id):
+        return super()._get_product_data(self.shop_id, product_id)
+
+    def _get_product_list(self):
+        page_id = 1
+        while True:
+            url = f"https://{self.shop_id}.booth.pm/items?page={page_id}"
+            html = self.request(url).text
+            product_list = text.extract_iter(
+                html, "&quot;shop_item_url&quot;:&quot;", "&quot;,"
+            )
+            for product_url in product_list:
+                product_id = BoothProductExtractor.pattern.match(product_url).group(2)
+                metadata = self._get_product_data(product_id)
+                yield Message.Directory, metadata
+                yield from self._get_image_url_from_metadata(metadata)
+            next_page = text.extr(html, '<a rel="next" class="nav-item" href="', '">')
+            if not next_page:
+                break
+            page_id += 1
+        return
+
+    def items(self):
+        yield from self._get_product_list()
