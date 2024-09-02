@@ -36,6 +36,7 @@ CATEGORY_MAP = {
     "baraag"         : "baraag",
     "batoto"         : "BATO.TO",
     "bbc"            : "BBC",
+    "booth"          : "BOOTH",
     "cien"           : "Ci-en",
     "comicvine"      : "Comic Vine",
     "coomerparty"    : "Coomer",
